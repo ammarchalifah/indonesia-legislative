@@ -9,7 +9,7 @@ pre-commit = "*"
 beautifulsoup4 = "*"
 path = "*"
 requests = "*"
-memory_profiler = "*"
+pymongo = "*"
 
 [dev-packages]
 
