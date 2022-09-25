@@ -8,6 +8,7 @@ pdfminer = "*"
 "pdfminer.six" = {extras = ["image"], version = "*"}
 pre-commit = "*"
 beautifulsoup4 = "*"
+pytest = "*"
 
 [dev-packages]
 

@@ -1,4 +1,4 @@
-from law_lineage import IndonesiaLawLineage
+from code.law_lineage import IndonesiaLawLineage
 
 client = IndonesiaLawLineage()
 
