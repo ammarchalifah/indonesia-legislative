@@ -4,11 +4,11 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pdfminer = "*"
 "pdfminer.six" = {extras = ["image"], version = "*"}
 pre-commit = "*"
 beautifulsoup4 = "*"
-pytest = "*"
+path = "*"
+requests = "*"
 
 [dev-packages]
 
