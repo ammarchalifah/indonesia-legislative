@@ -9,6 +9,7 @@ pre-commit = "*"
 beautifulsoup4 = "*"
 path = "*"
 requests = "*"
+memory_profiler = "*"
 
 [dev-packages]
 
