@@ -22,3 +22,11 @@ After MongoDB container is running, start the crawler
 ```
 python src/parliament_crawler.py
 ```
+Initialize the root folder of the project to PYTHONPATH
+```
+export PYTHONPATH=${current_directory}
+```
+Then, start the crawler
+```
+python src/parliament_crawler.py
+```
