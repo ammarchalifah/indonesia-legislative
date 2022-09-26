@@ -10,9 +10,15 @@ The third part is text extraction from PDF and text processing with NLP. The obj
 
 The fourth part is analytics: graph analytics to see the networks of legislative documents and text analytics to search clauses.
 ***
+## API
+TODO//
 
-## Web Crawler
-To run the crawler, run MongoDB container locally. MongoDB is a non-relational database that is suitable to store crawled data.
+***
+
+## Optional - Web Crawler
+If you want to build your own index & use it as the basis for the API, run your own crawler by following this guide.
+
+To run the crawler, run MongoDB container locally. MongoDB is a non-relational database that is suitable to store crawled data. In this example, MongoDB will run inside a Docker container locally.
 ```
 docker-compose up -d
 ```
@@ -21,10 +27,6 @@ Ensure the MongoDB container is running by executing `docker ps`
 After MongoDB container is running, start the crawler
 ```
 python src/parliament_crawler.py
-```
-Initialize the root folder of the project to PYTHONPATH
-```
-export PYTHONPATH=${current_directory}
 ```
 Then, start the crawler
 ```
