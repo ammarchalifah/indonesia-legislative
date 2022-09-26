@@ -1,135 +1,148 @@
-import gc
-import os
-import re
-import json
 import requests
+import pymongo
+from http_utils import TimeoutHTTPAdapter, DefaultRetryStrategy
+from bs4 import BeautifulSoup
 
-from bs4 import BeautifulSoup, SoupStrainer
 
-# Development tools
-from memory_profiler import profile
+adapter = TimeoutHTTPAdapter(max_retries=DefaultRetryStrategy)
+http = requests.Session()
+http.mount("http://", adapter)
+http.mount("https://", adapter)
+
 
 class ParliamentCrawler():
     """
     API to crawl DPR's website
     """
 
-    def __init__(self, root_url = 'https://www.dpr.go.id/', headers = None, crawler_db = 'crawler_db.json'):
+    def __init__(self, 
+                    root_url = 'https://www.dpr.go.id/', 
+                    headers = None, 
+                    crawler_db_host = 'mongodb://localhost:27017'
+                    ):
         """
         Initiating the crawler
         """
         self.root_url = root_url
-        self.headers = headers or {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OSX 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36", 
-          "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"}
-        self.crawler_db = crawler_db
-        self.crawl_counter = 0
+        self.headers = headers or {"User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OSX 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36", "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"}
+
+        # Crawler helper
+        self.crawl_counter = 1
+        self.crawl_child_links = []
+
+        # Database attributes
+        self.crawler_db_host = crawler_db_host
+        self.mongodb_client = None
+        self.mongodb_db = None
+        self.mongodb_coll = None
 
 
-    def init_db(self):
+    def init_db(self, 
+                    remove_existing = False,
+                    allow_duplicate = False):
         """
         Initialize external database in local filesystem to store crawled information
         """
-        file = open(self.crawler_db, 'w')
-        json.dump({}, file)
-        file.close()
-        print("Created a new crawler db at {}".format(self.crawler_db))
+        self.mongodb_client = pymongo.MongoClient(self.crawler_db_host)
+        if remove_existing:
+            self.mongodb_client.drop_database("crawler_db")
+        self.mongodb_db = self.mongodb_client["crawler_db"]
+        self.mongodb_coll = self.mongodb_db["crawler_coll"]
+        self.allow_duplicate = allow_duplicate
 
 
-    def read_db(self):
-        file = open(self.crawler_db, 'r')
-        json_object = json.load(file)
-        file.close()
-        return json_object
-
-
-    def write_db(self, json_object):
-        file = open(self.crawler_db, 'w')
-        json.dump(json_object, file)
-        file.close()
+    def cleanup_db(self, 
+        remove_empty_document = True
+        ):
+        """
+        Functions to clean the MongoDB
+        """
+        if remove_empty_document:
+            self.mongodb_coll.delete_many({"document_title":""})
 
 
     def get_page(self, url):
         """
         Get the HTML page from a URL
         """
-        response = requests.get(url, headers = self.headers)
-        parsed_html = BeautifulSoup(response.content, "html.parser", parse_only=SoupStrainer('a'))
+        response = http.get(url, headers = self.headers, timeout=1)
+        parsed_html = BeautifulSoup(response.content, "html.parser")
         return parsed_html
 
+    
+    def extract_dict(self, parsed_html):
+        """
+        Extract dictionary from parsed HTML
+        """
+        document_title = parsed_html.findAll('h3', {'class': 'text-center'})[0].text
 
-    def extract_links(self, parsed_html):
-        """
-        Extract all links from a parsed HTML
-        """
-        links = []
-        for link in parsed_html:
-            if link.has_attr('href'):
-                links.append(link['href'])
-        return links
+        document_attributes_list = parsed_html.findAll('div', {'class': 'keterangan'})[0].findAll('div', {'class':'clearfix'})
+        document_attributes = {}
 
+        for da in document_attributes_list:
+            if da.find('div', {'class':'input pull-left'}).find('a') is not None:
+                document_attributes[da.find('div', {'class':'ket-title pull-left'}).text] = da.find('div', {'class':'input pull-left'}).text.lstrip(': ') + da.find('div', {'class':'input pull-left'}).find('a')['href']
+            else:
+                document_attributes[da.find('div', {'class':'ket-title pull-left'}).text] = da.find('div', {'class':'input pull-left'}).text.lstrip(': ')
 
-    def cleanup_links(self, links):
-        """
-        Clean-up extracted links
-        """
-        clean_links = []
-        pathRegEx = re.compile(r'^\/.*$')
-        for link in links:
-            matched_string = pathRegEx.findall(link)
-            if matched_string != []:
-                clean_links.append(self.root_url + link)
-        return clean_links
+        extracted_dict = {
+            "id": self.crawl_counter,
+            "document_title": document_title,
+            "document_attributes":document_attributes
+        }
+        return extracted_dict
 
     
-    def log_links(self, url, links):
+    def log_dict(self, dict):
         """
-        Log the links into the crawler db
+        Log the extracted dict to MongoDB
         """
-        json_object = self.read_db()
-        json_object[url] = links
-        self.write_db(json_object)
+        if self.allow_duplicate:
+            row_id = self.mongodb_coll.insert_one(
+                dict
+            )
+        else:
+            # Check content in the DB and do upsert if there is a duplicate
+            return_docs = self.mongodb_coll.find({"id":self.crawl_counter})
+            if list(return_docs) == []:
+                # If url doesn't exist in MongoDB collection, insert
+                row_id = self.mongodb_coll.insert_one(
+                    dict
+                )
+            else: # update
+                row_id = self.mongodb_coll.update_many(
+                    {"id": self.crawl_counter},
+                    {
+                        "$set": dict,
+                        "$currentDate":{"lastModified":True}
+                    }
+                )
+        print("New row inserted to MongoDB collection. Document ID {}, id {}".format(row_id, dict["id"]))
 
     
     def crawl_page(self, url):
         """
         Crawl a page and log the result to db
         """
-        parsed_html = self.get_page(url)
-        links = self.extract_links(parsed_html)
-        clean_links = self.cleanup_links(links)
-        self.log_links(url, clean_links)
+        try:
+            parsed_html = self.get_page(url)
+            extracted_dict = self.extract_dict(parsed_html)
+            self.log_dict(extracted_dict)
+        except KeyboardInterrupt:
+            raise Exception("KeyboardInterrupt. Raising exception")
+        except:
+            print("Failed to crawl {}".format(url))
 
 
-    def is_url_in_db(self, url):
-        """
-        Check if URL already exists in crawler db.
-
-        True if URL already in db, false if not.
-        """
-        json_object = self.read_db()
-        if url in json_object:
-            return True
-        return False
-
-    def get_all_child_links(self):
-        """
-        Get all child links
-        """
-        json_object = self.read_db()
-        child_links = []
-        for key in json_object:
-            child_links += json_object[key]
-        return list(set(child_links))
-    
-    @profile
-    def start_crawl(self, url = None, stop_count = None):
+    def start_crawl(self, start_crawl = None, stop_count = None):
         """
         Start crawling from root_url
         """
 
-        if url is None:
-            url = self.root_url
+        url = self.root_url
 
+        if start_crawl is not None:
+            self.crawl_counter = start_crawl
 
         if stop_count is not None:
             if stop_count < self.crawl_counter:
@@ -137,29 +150,17 @@ class ParliamentCrawler():
                 return None
         
         # Start crawling
-        self.crawl_page(url)
+        self.crawl_page(url+str(self.crawl_counter))
         self.crawl_counter += 1
 
-        # Get all child URLs from db
-        child_links = self.get_all_child_links()
-        next_page = None
-
-        for c in child_links:
-            if self.is_url_in_db(c):
-                continue
-            else:
-                next_page = c
-                break
-        
-        if next_page is None:
-            print("Crawl finished.")
-            return None
-
-        self.start_crawl(next_page, stop_count)
+        self.start_crawl(stop_count = stop_count)
 
 
 
 if __name__ == "__main__":
-    crawler = ParliamentCrawler(root_url = 'https://www.dpr.go.id')
-    crawler.init_db()
-    crawler.start_crawl(stop_count=15)
+    crawler = ParliamentCrawler(root_url = 'https://www.dpr.go.id/jdih/index/id/', 
+        crawler_db_host='mongodb://Marukun:marukun@localhost:27017'
+        )
+    crawler.init_db(remove_existing = False)
+    crawler.start_crawl(1, 10)
+    crawler.cleanup_db
