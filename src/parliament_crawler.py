@@ -1,8 +1,9 @@
 import requests
 import pymongo
 import pandas as pd
-from http_utils import TimeoutHTTPAdapter, DefaultRetryStrategy
 from bs4 import BeautifulSoup
+
+from http_utils import TimeoutHTTPAdapter, DefaultRetryStrategy
 
 
 adapter = TimeoutHTTPAdapter(max_retries=DefaultRetryStrategy)
@@ -194,6 +195,6 @@ if __name__ == "__main__":
         crawler_db_host='mongodb://Marukun:marukun@localhost:27017'
         )
     crawler.init_db(remove_existing = False)
-    # crawler.start_crawl(1, 10)
+    crawler.start_crawl(1, 10)
     crawler.cleanup_db()
-    crawler.export_db("src/artifacts/legislative_docs.csv")
+    # crawler.export_db("src/artifacts/legislative_docs.csv")

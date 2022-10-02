@@ -21,21 +21,23 @@ for r in ret:
     print('lembaran_negara', r['document_attributes']['LN'])
     print('tambahan_lembaran_negara', r['document_attributes']['TLN'])
     print('pdf_filepath', r['document_attributes']['File'])
+    print(type(r))
+    print(type(r['document_attributes']))
     break
 
-df = json_normalize(ret)
-print(df)
-print(df.columns)
+# df = json_normalize(ret)
+# print(df)
+# print(df.columns)
 
 print("Document count:", mongodb_coll.count_documents(filter = {}))
 
 print("Min document ID:", mongodb_coll.find_one(sort=[("id", 1)])["id"])
 print("Max document ID:", mongodb_coll.find_one(sort=[("id", -1)])["id"])
 
-ret = mongodb_coll.find({"document_attributes":{"Referensi RUU": {'$regex':'*Data tidak ditemukan.*'}}})
-for r in ret:
-    print(r)
+# ret = mongodb_coll.find({"document_attributes":{"Referensi RUU": {'$regex':'*Data tidak ditemukan.*'}}})
+# for r in ret:
+#     print(r)
 
-ret = mongodb_coll.find({"document_title":""})
-for r in ret:
-    print(r)
+# ret = mongodb_coll.find({"document_title":""})
+# for r in ret:
+#     print(r)
