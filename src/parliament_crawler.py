@@ -1,5 +1,6 @@
 import requests
 import pymongo
+import pandas as pd
 from http_utils import TimeoutHTTPAdapter, DefaultRetryStrategy
 from bs4 import BeautifulSoup
 
@@ -14,6 +15,20 @@ class ParliamentCrawler():
     """
     API to crawl DPR's website
     """
+
+    field_mapper = {
+            '_id': '_id', 
+            'id': 'id', 
+            'document_title':'document_title', 
+            'lastModified':'lastModified',
+            'document_attributes.Nomor':'document_number', 
+            'document_attributes.Tanggal Disahkan':'document_ratification_date',
+            'document_attributes.Tanggal Diundangkan':'document_promulgation_date', 
+            'document_attributes.LN':'document_LN',
+            'document_attributes.TLN':'document_TLN', 
+            'document_attributes.File':'document_pdf_url',
+            'document_attributes.Referensi RUU':'document_ruu_reference'
+            }
 
     def __init__(self, 
                     root_url = 'https://www.dpr.go.id/', 
@@ -60,6 +75,23 @@ class ParliamentCrawler():
         if remove_empty_document:
             self.mongodb_coll.delete_many({"document_title":""})
 
+    def export_db(self,
+        path
+        ):
+        """
+        Function to convert 
+        """
+        cursor = self.mongodb_coll.find()
+        df = pd.json_normalize(cursor)
+        new_column_name = []
+        for c in df.columns:
+            try:
+                c_ = self.field_mapper[c]
+                new_column_name.append(c_)
+            except:
+                new_column_name.append(c)
+        df.columns = new_column_name
+        df.to_csv(path)
 
     def get_page(self, url):
         """
@@ -162,5 +194,6 @@ if __name__ == "__main__":
         crawler_db_host='mongodb://Marukun:marukun@localhost:27017'
         )
     crawler.init_db(remove_existing = False)
-    crawler.start_crawl(1, 10)
-    crawler.cleanup_db
+    # crawler.start_crawl(1, 10)
+    crawler.cleanup_db()
+    crawler.export_db("src/artifacts/legislative_docs.csv")
