@@ -1,4 +1,13 @@
+import io
+
+import pdfminer
+from pdfminer.converter import TextConverter
+from pdfminer.pdfinterp import PDFPageInterpreter
+from pdfminer.pdfinterp import PDFResourceManager
+from pdfminer.pdfpage import PDFPage
+
 from pdfminer.high_level import extract_text
+import argparse
 
 class DocumentProcessor():
     """
@@ -11,6 +20,11 @@ class DocumentProcessor():
 
 
     def extract_pdf(self, input, output = None):
+
+        # Perform layout analysis for all text
+        laparams = pdfminer.layout.LAParams()
+        setattr(laparams, 'all_texts', True)
+
         """
         Extract text from PDF files. Write output 
 
@@ -24,12 +38,23 @@ class DocumentProcessor():
         if output.split('.')[-1] != 'txt':
             raise Exception("Output must be a txt file")
 
-        text = extract_text(input)
-        if output is not None:
-            with open(output, 'w', encoding = 'utf-8') as f:
-                f.write(text)
+        resource_manager = PDFResourceManager()
+        fake_handler = io.StringIO()
 
-        return 0
+        converter = TextConverter(resource_manager, fake_handler, laparams=laparams)
+        page_interpreter = PDFPageInterpreter(resource_manager, converter)
+
+        with open(input, 'rb') as f :
+            for page in PDFPage.get_pages(f, caching=True, check_extractable=True) :
+                page_interpreter.process_page(page)
+
+            text = fake_handler.getvalue()
+
+        converter.close()
+        fake_handler.close()
+
+        with open(output, 'w') as f :
+            f.write(text)
 
     def extract_document_title(self, input):
         """
@@ -60,3 +85,17 @@ class DocumentProcessor():
         > section_number & content tuple (int, string)
         """
         pass
+
+def main() :
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", "-i", type=str, required=True)
+    parser.add_argument("--output", "-o", type=str, required=True)
+
+    args = parser.parse_args()
+    processor = DocumentProcessor()
+    processor.extract_pdf(args.input, args.output)
+
+if __name__ == "__main__" :
+    main()
+
+
