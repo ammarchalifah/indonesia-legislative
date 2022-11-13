@@ -34,9 +34,6 @@ class DocumentProcessor():
         """
         if input.split('.')[-1] != 'pdf':
             raise Exception("Input must be a pdf file")
-        
-        if output.split('.')[-1] != 'txt':
-            raise Exception("Output must be a txt file")
 
         resource_manager = PDFResourceManager()
         fake_handler = io.StringIO()
@@ -92,8 +89,8 @@ def main() :
 
     args = parser.parse_args()
     processor = DocumentProcessor()
-    text = processor.extract_pdf(args.input, args.output)
-    with open(output, "w") as f :
+    text = processor.extract_pdf(args.input)
+    with open(args.output, "w") as f :
         f.write(text)
 
 if __name__ == "__main__" :
