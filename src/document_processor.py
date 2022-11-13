@@ -19,7 +19,7 @@ class DocumentProcessor():
         pass
 
 
-    def extract_pdf(self, input, output = None):
+    def extract_pdf(self, input):
 
         # Perform layout analysis for all text
         laparams = pdfminer.layout.LAParams()
@@ -34,9 +34,6 @@ class DocumentProcessor():
         """
         if input.split('.')[-1] != 'pdf':
             raise Exception("Input must be a pdf file")
-        
-        if output.split('.')[-1] != 'txt':
-            raise Exception("Output must be a txt file")
 
         resource_manager = PDFResourceManager()
         fake_handler = io.StringIO()
@@ -53,8 +50,7 @@ class DocumentProcessor():
         converter.close()
         fake_handler.close()
 
-        with open(output, 'w') as f :
-            f.write(text)
+        return text
 
     def extract_document_title(self, input):
         """
@@ -93,7 +89,9 @@ def main() :
 
     args = parser.parse_args()
     processor = DocumentProcessor()
-    processor.extract_pdf(args.input, args.output)
+    text = processor.extract_pdf(args.input)
+    with open(args.output, "w") as f :
+        f.write(text)
 
 if __name__ == "__main__" :
     main()
